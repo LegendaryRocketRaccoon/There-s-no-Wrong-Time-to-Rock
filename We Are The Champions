@@ -1,0 +1,87 @@
+#include <WiFi.h>
+#include <Firebase_ESP_Client.h>
+
+// ======== 1. Configurações da rede Wi-Fi ========
+#define WIFI_SSID "R2D2"
+#define WIFI_PASSWORD "Procyon Lotor"
+
+// ======== 2. Chave da API do Firebase ========
+#define API_KEY "AIzaSyDO2FlOSLUyxgz-aQlmwvopmmaQXWSTNgY"
+
+// ======== 3. URL do Realtime Database ========
+#define DATABASE_URL "https://there-s-no-hope-default-rtdb.firebaseio.com/" 
+
+// ======== 4. Credenciais do usuário Firebase (já registrado) ========
+#define USER_EMAIL "chimellogustavo17@gmail.com"
+#define USER_PASSWORD "Procyon Lotor"
+
+// ======== Objetos do Firebase ========
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
+
+// ======== Controle de tempo ========
+unsigned long sendDataPrevMillis = 0;
+
+// ======== Pino do LED ========
+const int ledPin = 4;
+
+void setup() {
+  // Configurações iniciais
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, LOW);
+
+  Serial.begin(115200);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+  Serial.print("Conectando ao Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(300);
+  }
+  Serial.println();
+  Serial.print("Conectado! IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.println();
+
+  // ======== Configuração do Firebase ========
+  config.api_key = API_KEY;
+  config.database_url = DATABASE_URL;
+  config.timeout.serverResponse = 10 * 1000; // 10 segundos
+
+  auth.user.email = USER_EMAIL;
+  auth.user.password = USER_PASSWORD;
+
+  Firebase.reconnectNetwork(true);
+
+  // Buffers para conexão segura SSL (importante para dados maiores)
+  fbdo.setBSSLBufferSize(4096, 1024);  // Rx e Tx buffers
+  fbdo.setResponseSize(2048);          // Tamanho da resposta permitida
+  Firebase.setDoubleDigits(5);         // Precisão para valores float
+
+  // Inicializa o Firebase
+  Firebase.begin(&config, &auth);
+}
+
+void loop() {
+  // Verifica se o Firebase está pronto e se já passou 1 segundo
+  if (Firebase.ready() && (millis() - sendDataPrevMillis > 1000 || sendDataPrevMillis == 0)) {
+    sendDataPrevMillis = millis();
+
+    int ledState;
+
+    // Lê o valor da chave "/led/state" no Realtime Database
+    if (Firebase.RTDB.getInt(&fbdo, "/led/state", &ledState)) {
+      // Verifica se o dado lido é um inteiro
+      if (fbdo.dataType() == "int") {
+        digitalWrite(ledPin, ledState);
+        Serial.printf("LED -> %s\n", ledState ? "ON" : "OFF");
+      } else {
+        Serial.println("Tipo de dado inesperado no Firebase (esperado: int)");
+      }
+    } else {
+      Serial.print("Erro ao ler do Firebase: ");
+      Serial.println(fbdo.errorReason().c_str());
+    }
+  }
+}
