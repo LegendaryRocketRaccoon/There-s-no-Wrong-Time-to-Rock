@@ -24,7 +24,7 @@ FirebaseConfig config;
 unsigned long sendDataPrevMillis = 0;
 
 // ======== Pino do LED ========
-const int ledPin = 4;
+const int ledPin = 27;
 
 void setup() {
   // Configurações iniciais
